@@ -1,0 +1,573 @@
+definitions:
+  handlers.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  handlers.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  handlers.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  handlers.TokenPair:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    type: object
+  model.Category:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        description: Soft delete
+        type: string
+      id:
+        description: Adds some metadata fields to the table
+        type: string
+      name:
+        type: string
+      type:
+        description: '''income'' or ''expense'''
+        type: string
+      updated_at:
+        type: string
+      userID:
+        description: Foreign key to User
+        type: string
+    type: object
+  model.Transaction:
+    properties:
+      amount:
+        type: number
+      categoryID:
+        description: Foreign key to Category
+        type: string
+      created_at:
+        type: string
+      date:
+        type: string
+      deleted_at:
+        description: Soft delete
+        type: string
+      description:
+        type: string
+      id:
+        description: Adds some metadata fields to the table
+        type: string
+      updated_at:
+        type: string
+      userID:
+        description: Foreign key to User
+        type: string
+    type: object
+  model.TransactionGroupedByCategory:
+    properties:
+      category_name:
+        type: string
+      category_type:
+        type: string
+      transactions:
+        items:
+          $ref: '#/definitions/model.Transaction'
+        type: array
+    type: object
+  model.User:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        description: Soft delete
+        type: string
+      email:
+        description: Email field with JSON and unique constraint
+        type: string
+      first_name:
+        type: string
+      id:
+        description: Adds some metadata fields to the table
+        type: string
+      last_name:
+        type: string
+      password:
+        description: Only for email/password login
+        type: string
+      refreshToken:
+        description: To store the refresh token
+        type: string
+      updated_at:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /api/auth/callback:
+    get:
+      description: Handles the callback from Google OAuth, registers the user if necessary,
+        and returns tokens
+      responses:
+        "200":
+          description: Successful login
+          schema:
+            $ref: '#/definitions/handlers.TokenPair'
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Google OAuth Callback
+      tags:
+      - auth
+  /api/auth/email-login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user with email and password, returns access and
+        refresh tokens
+      parameters:
+      - description: Login credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successful login
+          schema:
+            $ref: '#/definitions/handlers.TokenPair'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "401":
+          description: Invalid credentials
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Login with Email and Password
+      tags:
+      - auth
+  /api/auth/google:
+    get:
+      description: Redirects to Google OAuth for login
+      responses:
+        "302":
+          description: Redirecting to Google OAuth
+          schema:
+            type: string
+      summary: Google OAuth Login
+      tags:
+      - auth
+  /api/auth/logout:
+    get:
+      description: Clears the authentication tokens, effectively logging out the user
+      responses:
+        "200":
+          description: Successfully logged out!
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Logout
+      tags:
+      - auth
+  /api/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Uses a valid refresh token to generate a new access token
+      parameters:
+      - description: Refresh token request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Access token successfully refreshed
+          schema:
+            $ref: '#/definitions/handlers.TokenPair'
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "401":
+          description: Invalid or expired refresh token
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Refresh Access Token
+      tags:
+      - auth
+  /api/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Registers a new user with email and password
+      parameters:
+      - description: User Registration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created successfully
+          schema:
+            type: string
+        "400":
+          description: Invalid request
+          schema:
+            type: string
+        "409":
+          description: User already exists
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Register a new user
+      tags:
+      - auth
+  /api/categories:
+    get:
+      consumes:
+      - application/json
+      description: Get categories for the authenticated user
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Category'
+            type: array
+      tags:
+      - categories
+    post:
+      consumes:
+      - application/json
+      description: Add a new category to the database
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Category to add
+        in: body
+        name: category
+        required: true
+        schema:
+          $ref: '#/definitions/model.Category'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Category'
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to add category
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Add a new category
+      tags:
+      - categories
+  /api/statistics/category:
+    get:
+      description: Returns income and expense statistics by category and date range
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Category ID
+        in: query
+        name: category_id
+        required: true
+        type: string
+      - description: Start Date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End Date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Transaction'
+            type: array
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Get statistics by category
+      tags:
+      - statistics
+  /api/transaction:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve transactions by category and date range
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Category ID
+        in: query
+        name: categoryId
+        type: string
+      - description: Start Date in YYYY-MM-DD format
+        in: query
+        name: startDate
+        type: string
+      - description: End Date in YYYY-MM-DD format
+        in: query
+        name: endDate
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.TransactionGroupedByCategory'
+            type: array
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Get transactions grouped by category
+      tags:
+      - transactions
+    post:
+      consumes:
+      - application/json
+      description: Adds an income or expense transaction by category
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Transaction Data
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/model.Transaction'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Transaction'
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Add a new transaction
+      tags:
+      - transactions
+  /api/user:
+    get:
+      consumes:
+      - application/json
+      description: Get all existing users
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.User'
+            type: array
+      tags:
+      - user
+    post:
+      consumes:
+      - application/json
+      description: Create a User
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Name
+        in: body
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Email
+        in: body
+        name: email
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.User'
+      tags:
+      - Users
+  /api/user/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a user by ID
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      tags:
+      - user
+    get:
+      consumes:
+      - application/json
+      description: Get one user by ID
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.User'
+      tags:
+      - user
+  /api/voice:
+    post:
+      consumes:
+      - audio/mpeg
+      description: Receives an audio file and transcribes it to text using Google
+        Cloud Speech-to-Text
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Audio file to transcribe
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Transcribe audio to text
+      tags:
+      - transcription
+swagger: "2.0"
