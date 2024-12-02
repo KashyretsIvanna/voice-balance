@@ -328,11 +328,6 @@ paths:
         name: Authorization
         required: true
         type: string
-      - description: Category ID
-        in: query
-        name: category_id
-        required: true
-        type: string
       - description: Start Date (YYYY-MM-DD)
         in: query
         name: start_date
@@ -528,10 +523,31 @@ paths:
             $ref: '#/definitions/model.User'
       tags:
       - user
+  /api/user/me:
+    get:
+      consumes:
+      - application/json
+      description: Get details of the authenticated user
+      parameters:
+      - default: Bearer <Add access token here>
+        description: Insert your access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.User'
+      tags:
+      - user
   /api/voice:
     post:
       consumes:
-      - audio/mpeg
+      - audio/wav
       description: Receives an audio file and transcribes it to text using Google
         Cloud Speech-to-Text
       parameters:

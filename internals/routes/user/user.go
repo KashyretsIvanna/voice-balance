@@ -11,6 +11,8 @@ func SetupUserRoutes(router fiber.Router) {
 
 	// Read all Users
 	user.Get("/", authHandler.AuthMiddleware, userHandler.GetUsers)
+	user.Get("/me", authHandler.AuthMiddleware, userHandler.GetMe)
+
 	// // Read one User
 	user.Get("/:userId", authHandler.AuthMiddleware, userHandler.GetUser)
 

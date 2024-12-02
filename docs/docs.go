@@ -348,13 +348,6 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Category ID",
-                        "name": "category_id",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
                         "description": "Start Date (YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
@@ -580,6 +573,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/user/me": {
+            "get": {
+                "description": "Get details of the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "Bearer \u003cAdd access token here\u003e",
+                        "description": "Insert your access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.User"
+                        }
+                    }
+                }
+            }
+        },
         "/api/user/{id}": {
             "get": {
                 "description": "Get one user by ID",
@@ -643,7 +668,7 @@ const docTemplate = `{
             "post": {
                 "description": "Receives an audio file and transcribes it to text using Google Cloud Speech-to-Text",
                 "consumes": [
-                    "audio/mpeg"
+                    "audio/wav"
                 ],
                 "produces": [
                     "application/json"

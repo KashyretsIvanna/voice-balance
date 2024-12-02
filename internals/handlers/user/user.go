@@ -5,6 +5,7 @@ import (
 	"github.com/KashyretsIvanna/voice-balance/internals/model"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // GetUsers func gets all existing users
@@ -29,6 +30,57 @@ func GetUsers(c *fiber.Ctx) error {
 
 	// Else return users
 	return c.JSON(fiber.Map{"status": "success", "message": "Users Found", "data": users})
+}
+
+// GetMe retrieves the details of the currently authenticated user
+// @Description Get details of the authenticated user
+// @Param Authorization header string true "Insert your access token" default(Bearer <Add access token here>)
+// @Tags user
+// @Accept json
+// @Produce json
+// @Success 200 {object} model.User
+// @Router /api/user/me [get]
+func GetMe(c *fiber.Ctx) error {
+	db := database.DB
+
+	// Extract the user ID from the context
+	userID, ok := c.Locals("ID").(uuid.UUID)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "User ID not found in context",
+		})
+	}
+
+	// Find the user in the database
+	var user struct {
+		ID    uuid.UUID `json:"id"`
+		Name  string    `json:"name"`
+		Email string    `json:"email"`
+	}
+
+	// Query the database for the specific columns
+	err := db.Model(&model.User{}).
+		Select("id, email").
+		Where("id = ?", userID).
+		First(&user).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "User not found",
+			})
+		}
+		// Handle other database errors
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve user data",
+		})
+	}
+
+	// Return the user details if found
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status":  "success",
+		"message": "User found",
+		"data":    user,
+	})
 }
 
 // GetUser func gets one user by ID
