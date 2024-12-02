@@ -4,6 +4,7 @@ import (
 	"github.com/KashyretsIvanna/voice-balance/database"
 	"github.com/KashyretsIvanna/voice-balance/router"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/swagger"
 )
 
@@ -15,6 +16,7 @@ func main() {
 
 	// Connect to the Database
 	database.ConnectDB()
+	app.Use(cors.New())
 
 	// Setup the router
 	router.SetupRoutes(app)
