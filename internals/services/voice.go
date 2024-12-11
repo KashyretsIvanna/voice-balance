@@ -2,17 +2,73 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"os"
 	"regexp"
 	"strings"
+
 	"cloud.google.com/go/speech/apiv1"
 	"cloud.google.com/go/speech/apiv1/speechpb" // Updated import for speech types
+	"cloud.google.com/go/vertexai/genai"
 	"github.com/KashyretsIvanna/voice-balance/config"
 	"google.golang.org/api/option"
 )
+
+type Candidate struct {
+	Index            int              `json:"Index"`
+	Content          CandidateContent `json:"Content"`
+	FinishReason     int              `json:"FinishReason"`
+	SafetyRatings    []SafetyRating   `json:"SafetyRatings"`
+	FinishMessage    string           `json:"FinishMessage"`
+	CitationMetadata interface{}      `json:"CitationMetadata"`
+}
+
+type CandidateContent struct {
+	Role  string   `json:"Role"`
+	Parts []string `json:"Parts"`
+}
+
+type SafetyRating struct {
+	Category         int     `json:"Category"`
+	Probability      int     `json:"Probability"`
+	ProbabilityScore float64 `json:"ProbabilityScore"`
+	Severity         int     `json:"Severity"`
+	SeverityScore    float64 `json:"SeverityScore"`
+	Blocked          bool    `json:"Blocked"`
+}
+
+type Data struct {
+	Candidates     []Candidate `json:"Candidates"`
+	PromptFeedback interface{} `json:"PromptFeedback"`
+	UsageMetadata  Usage       `json:"UsageMetadata"`
+}
+
+type Usage struct {
+	PromptTokenCount     int `json:"PromptTokenCount"`
+	CandidatesTokenCount int `json:"CandidatesTokenCount"`
+	TotalTokenCount      int `json:"TotalTokenCount"`
+}
+
+func parseJSONParts(parts []string) []interface{} {
+	parsedParts := make([]interface{}, len(parts))
+	re := regexp.MustCompile("(?s)```json\\n(.*?)\\n```")
+	for i, part := range parts {
+		match := re.FindStringSubmatch(part)
+		if match != nil {
+			var jsonData interface{}
+			err := json.Unmarshal([]byte(match[1]), &jsonData)
+			if err == nil {
+				parsedParts[i] = jsonData
+				continue
+			}
+		}
+		parsedParts[i] = part // Leave as-is if not JSON or on error
+	}
+	return parsedParts
+}
 
 func ParseText(file *multipart.FileHeader) (string, error) {
 
@@ -46,7 +102,6 @@ func ParseText(file *multipart.FileHeader) (string, error) {
 		return "", err
 
 	}
-	
 	defer client.Close()
 
 	fmt.Print(tempFile.Name())
@@ -77,8 +132,6 @@ func ParseText(file *multipart.FileHeader) (string, error) {
 		return "", err
 
 	}
-
-	fmt.Print(resp.Results)
 
 	// Collect the transcription result
 	transcription := ""
@@ -136,8 +189,6 @@ func handleAddExpense(command string) map[string]interface{} {
 	amountMatches := amountRegex.FindStringSubmatch(command)
 	categoryMatches := categoryRegex.FindStringSubmatch(command)
 
-	fmt.Print(amountMatches)
-	fmt.Print(categoryMatches)
 
 	// Default category if not found
 	category := "не вказано"
@@ -152,7 +203,6 @@ func handleAddExpense(command string) map[string]interface{} {
 	}
 
 	// Print the parsed results for debugging
-	fmt.Printf("Додано витрату: %s на категорію %s\n", amount, category)
 
 	// Return the parsed data in a map
 	result := map[string]interface{}{
@@ -302,4 +352,96 @@ func convertVoiceCommand(command string) int {
 	}
 
 	return total
+}
+
+func AskAi(command string) (error, map[string]interface{}) {
+	location := "us-central1"
+	modelName := "gemini-1.5-flash-001"
+	projectID := "cool-academy-359612"
+	ctx := context.Background()
+
+	// Initialize the client with credentials
+	client, err := genai.NewClient(ctx, projectID, location, option.WithCredentialsFile(config.Config("CLOUD_JSON_PATH")))
+	if err != nil {
+		return fmt.Errorf("error creating client: %w", err), nil
+	}
+
+	gemini := client.GenerativeModel(modelName)
+
+	// Define the prompt
+	prompt := genai.Text(fmt.Sprintf(
+		`Я створюю додаток ведення балансу. Ти експерт розпізнавання команд від користувача. 
+		Тобі потрібно розпізнати команду та вивести розультат в форматі JSON. Якщо якусь з інформації користувач не надав поверни відповідний ключ з пустою строкою.
+		Є кілька типів команд, які підтримує додаток: додавання витрат або 
+		доходів, створення нагадувань, статистика. Приклад відовіді яку я 
+		очікую, якщо запит на додавання витрат або додавання доходів: 
+		{ "amount": 0, "category": "не вказано", "type": "витрати" }. 
+		
+		Type повинен бути: "доходи", "витрати" або "". 
+		Amount: число заокруглене до сотих, category - вказує 
+		на що вирати чи доходи(наприклад, продукти).
+		Наступний тип команди - створення нагадувань. Приклад 
+		відповіді яку я очікую: { "category": "оплатити рахунок за електроенергію", "type": "нагадування" }, 
+		де category - текст нагадування. Type - завжди "нагадування". Наступний тип команди. - відобразити статистику. 
+		Приклад відповіді яку я очікую: { "category": "", "range": "тиждень", "type": "статистика" }. Повинна повертати range: "тиждень", "рік","місяць",”день”. Якщо не визначено тип команди чи користувач говорить дивні запити, повертай type пустим рядком.
+
+		Розпізнай наступний текст та поверни результат: %s.
+		`, command))
+
+	// Generate content
+	resp, err := gemini.GenerateContent(ctx, prompt)
+	if err != nil {
+		return fmt.Errorf("error generating content: %w", err), nil
+	}
+
+	// Format the response to JSON
+	rb, err := json.MarshalIndent(resp, "", "  ")
+	if err != nil {
+		return fmt.Errorf("error formatting response to JSON: %w", err), nil
+	}
+
+	res := string(rb)
+	fmt.Println("Generated Response:", res)
+
+	// Parse the response into a struct
+	var data Data
+	if err := json.Unmarshal([]byte(res), &data); err != nil {
+		return fmt.Errorf("error unmarshalling response into Data struct: %w", err), nil
+	}
+
+	// Validate if the response has Candidates and Content
+	if len(data.Candidates) == 0 {
+		return fmt.Errorf("no candidates found in the response"), nil
+	}
+
+	content := &data.Candidates[0].Content
+	content.Parts = toStringSlice(parseJSONParts(content.Parts))
+
+	// Ensure at least one Part is available
+	if len(content.Parts) == 0 {
+		return fmt.Errorf("no content parts found in the response"), nil
+	}
+
+	// Parse the JSON from the first part
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(content.Parts[0]), &parsed); err != nil {
+		return fmt.Errorf("error unmarshalling content part to JSON: %w", err), nil
+	}
+
+	// Return the parsed JSON object
+	return nil, parsed
+}
+
+func toStringSlice(parts []interface{}) []string {
+	result := make([]string, len(parts))
+	for i, part := range parts {
+		switch v := part.(type) {
+		case string:
+			result[i] = v
+		default:
+			jsonPart, _ := json.Marshal(v)
+			result[i] = string(jsonPart)
+		}
+	}
+	return result
 }

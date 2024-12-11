@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/KashyretsIvanna/voice-balance/internals/services"
 	"github.com/gofiber/fiber/v2"
@@ -20,41 +21,36 @@ import (
 // @Failure      500   {object}  map[string]string
 // @Router       /api/voice [post]
 func TranscribeAudio(c *fiber.Ctx) error {
-	//Parse the uploaded file
+	// Parse the uploaded file
 	file, err := c.FormFile("file")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Failed ton get file",
+			"error": "Failed to get file: Please upload a valid file.",
 		})
 	}
 
-
-	fmt.Print("before")
+	// Attempt to parse the file and transcribe the audio
 	transcription, err := services.ParseText(file)
-	fmt.Print(transcription)
-	fmt.Print(err)
-
-
-
 	if err != nil {
-		fmt.Print(err)
-
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err,
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to transcribe the uploaded file: %v", err),
 		})
 	}
 
-	action, err := services.GetActionFromVoice(transcription)
-	if err != nil {
-		fmt.Print(err)
+	// Convert the transcribed text to lowercase
+	textCommand := strings.ToLower(transcription)
 
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err,
+	// Use the AskAi service to interpret the text command
+	err, res := services.AskAi(textCommand)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("AI processing error: %v", err),
 		})
 	}
 
+	// Return the successfully processed action
 	return c.JSON(fiber.Map{
 		"status": "success",
-		"action": action,
+		"action": res,
 	})
 }

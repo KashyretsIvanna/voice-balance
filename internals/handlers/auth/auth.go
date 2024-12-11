@@ -349,7 +349,6 @@ func Logout(c *fiber.Ctx) error {
 func AuthMiddleware(c *fiber.Ctx) error {
 	// Retrieve the token from the "Authorization" header or cookies
 	tokenStr := c.Get("Authorization")
-	fmt.Print(tokenStr)
 	// Check if the bearer string starts with "Bearer "
 	if !strings.HasPrefix(tokenStr, "Bearer ") {
 		return fmt.Errorf("invalid Bearer token format")
@@ -363,14 +362,11 @@ func AuthMiddleware(c *fiber.Ctx) error {
 		return c.Status(http.StatusUnauthorized).SendString("Unauthorized")
 	}
 
-	fmt.Print("ParseWithClaims")
 
 	// Parse and validate the token
 	token, err := jwt.ParseWithClaims(tokenStr, &jwt.StandardClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return jwtAccessKey, nil
 	})
-	fmt.Print("ParseWithClaims2")
-	fmt.Print(err)
 
 	if err != nil || !token.Valid {
 		return c.Status(http.StatusUnauthorized).SendString("Invalid or expired token")
