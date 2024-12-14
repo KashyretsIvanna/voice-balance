@@ -116,7 +116,7 @@ func GetTransactions(c *fiber.Ctx) error {
 	}
 
 	// Execute the query
-	if err := query.Find(&transactions).Error; err != nil {
+	if err := query.Preload("Category").Find(&transactions).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 

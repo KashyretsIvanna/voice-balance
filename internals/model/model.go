@@ -41,6 +41,7 @@ type Transaction struct {
 	Description string     `gorm:"size:255"`
 	Date        time.Time  `gorm:"not null"`
 	UserID      uuid.UUID  `gorm:"not null"` // Foreign key to User
+	Category   	Category   `gorm:"foreignKey:CategoryID"`
 	CategoryID  uuid.UUID  `gorm:"not null"` // Foreign key to Category
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
